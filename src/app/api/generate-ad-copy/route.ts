@@ -35,9 +35,9 @@ ${targetAudience ? `Hedef Kitle: ${targetAudience}` : ""}
 
 Yukarıdaki bilgilere göre Instagram reklam metni oluştur.`;
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
-    if (!apiKey || apiKey === "your_openai_api_key_here") {
+    if (!apiKey || apiKey === "your_openrouter_api_key_here") {
       // Demo mode - return example data when no API key is configured
       return NextResponse.json({
         headline: `✨ ${product} ile Fark Yarat!`,
@@ -49,20 +49,22 @@ Yukarıdaki bilgilere göre Instagram reklam metni oluştur.`;
         hashtags: "#reklam #yenilik #fırsat #kalite #keşfet",
         demo: true,
         message:
-          "Demo modu: Gerçek metin için OpenAI API anahtarı ekleyin.",
+          "Demo modu: Gerçek metin için OpenRouter API anahtarı ekleyin.",
       });
     }
 
     const response = await fetch(
-      "https://api.openai.com/v1/chat/completions",
+      "https://openrouter.ai/api/v1/chat/completions",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${apiKey}`,
+          "HTTP-Referer": "https://reklam-olusturucu.vercel.app",
+          "X-Title": "Reklam Olusturucu",
         },
         body: JSON.stringify({
-          model: "gpt-4o-mini",
+          model: "openai/gpt-4o-mini",
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             { role: "user", content: userPrompt },
@@ -75,7 +77,7 @@ Yukarıdaki bilgilere göre Instagram reklam metni oluştur.`;
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("OpenAI API error:", errorData);
+      console.error("OpenRouter API error:", errorData);
       throw new Error(
         errorData.error?.message || "Reklam metni oluşturulamadı"
       );

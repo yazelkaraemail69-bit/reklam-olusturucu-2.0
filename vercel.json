@@ -4,6 +4,6 @@
   "outputDirectory": ".next",
   "installCommand": "npm install",
   "env": {
-    "OPENAI_API_KEY": "@openai-api-key"
+    "OPENROUTER_API_KEY": "@openrouter-api-key"
   }
 }
