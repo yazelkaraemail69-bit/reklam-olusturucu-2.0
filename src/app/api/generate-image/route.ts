@@ -1,5 +1,73 @@
 import { NextResponse } from "next/server";
 
+// OpenRouter'da görsel üretimi chat/completions endpoint'i ile,
+// "modalities: ['image', 'text']" destekleyen modeller üzerinden yapılır.
+// Gemini 2.5 Flash Image (nano-banana) şu an en iyi ve uygun fiyatlı seçenek.
+const IMAGE_MODELS = [
+  "google/gemini-2.5-flash-image",
+  "google/gemini-2.5-flash-image-preview",
+];
+
+type OpenRouterImageResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string;
+      images?: Array<{
+        type?: string;
+        image_url?: { url?: string };
+      }>;
+    };
+  }>;
+  error?: { message?: string };
+};
+
+async function tryGenerateImage(
+  apiKey: string,
+  model: string,
+  prompt: string
+): Promise<{ imageUrl: string } | { error: string }> {
+  const response = await fetch(
+    "https://openrouter.ai/api/v1/chat/completions",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://reklam-olusturucu.vercel.app",
+        "X-Title": "Reklam Olusturucu",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        modalities: ["image", "text"],
+      }),
+    }
+  );
+
+  const data: OpenRouterImageResponse = await response.json().catch(() => ({}));
+
+  if (!response.ok) {
+    return {
+      error: data.error?.message || `Model ${model} başarısız (${response.status})`,
+    };
+  }
+
+  // Görseli yanıttan çıkar (base64 data URL olarak gelir)
+  const images = data.choices?.[0]?.message?.images;
+  const imageUrl = images?.[0]?.image_url?.url;
+
+  if (imageUrl) {
+    return { imageUrl };
+  }
+
+  return { error: "Model görsel döndürmedi" };
+}
+
 export async function POST(request: Request) {
   try {
     const { prompt } = await request.json();
@@ -26,89 +94,37 @@ export async function POST(request: Request) {
       });
     }
 
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://reklam-olusturucu.vercel.app",
-          "X-Title": "Reklam Olusturucu",
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content:
-                "Sen bir görsel tanımlama asistanısın. Kullanıcının verdiği reklam açıklamasını, DALL-E için optimize edilmiş, detaylı bir İngilizce prompt'a çevir. Sadece prompt'u yaz, başka bir şey yazma.",
-            },
-            {
-              role: "user",
-              content: `Bu reklam için DALL-E prompt'u oluştur: ${prompt}. Profesyonel, yüksek kaliteli, ticari ürün fotoğrafçılığı stili.`,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 300,
-        }),
+    // Reklam görseli için optimize edilmiş prompt
+    const imagePrompt = `Create a professional, high-quality advertising image for the following product/service. The image should be suitable for Instagram advertising: eye-catching, commercial photography style, vibrant colors, clean composition, studio lighting, product-focused.
+
+Product/Description: ${prompt}
+
+Style requirements:
+- Professional commercial product photography
+- Instagram-ready square format aesthetics
+- Bright, appealing, premium look
+- No text or watermarks in the image`;
+
+    // Modelleri sırayla dene
+    const errors: string[] = [];
+    for (const model of IMAGE_MODELS) {
+      const result = await tryGenerateImage(apiKey, model, imagePrompt);
+      if ("imageUrl" in result) {
+        return NextResponse.json({ imageUrl: result.imageUrl, model });
       }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("OpenRouter API error:", errorData);
-      throw new Error(
-        errorData.error?.message || "Görsel prompt'u oluşturulamadı"
-      );
+      errors.push(`${model}: ${result.error}`);
+      console.error(`Image generation failed with ${model}:`, result.error);
     }
 
-    const data = await response.json();
-    const generatedPrompt = data.choices[0].message.content;
-
-    // Now generate the image using OpenRouter's image generation
-    const imageResponse = await fetch(
-      "https://openrouter.ai/api/v1/images/generations",
+    // Tüm modeller başarısız olduysa hata döndür
+    return NextResponse.json(
       {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://reklam-olusturucu.vercel.app",
-          "X-Title": "Reklam Olusturucu",
-        },
-        body: JSON.stringify({
-          model: "black-forest-labs/flux-schnell",
-          prompt: generatedPrompt,
-          n: 1,
-          size: "1024x1024",
-        }),
-      }
+        error:
+          "Görsel oluşturulamadı. Denenen modeller başarısız oldu: " +
+          errors.join(" | "),
+      },
+      { status: 502 }
     );
-
-    if (!imageResponse.ok) {
-      const errorData = await imageResponse.json().catch(() => ({}));
-      console.error("OpenRouter image API error:", errorData);
-
-      // Fallback: Return a placeholder if image generation fails
-      const fallbackUrl = `https://placehold.co/600x600/3b82f6/ffffff?text=${encodeURIComponent(
-        "Reklam Görseli"
-      )}`;
-      return NextResponse.json({
-        imageUrl: fallbackUrl,
-        generatedPrompt,
-        note: "Görsel oluşturulamadı, placeholder gösteriliyor.",
-      });
-    }
-
-    const imageData = await imageResponse.json();
-    const imageUrl = imageData.data?.[0]?.url || imageData.data?.[0]?.b64_json;
-
-    if (!imageUrl) {
-      throw new Error("Görsel URL'si alınamadı");
-    }
-
-    return NextResponse.json({ imageUrl, generatedPrompt });
   } catch (error) {
     console.error("Image generation error:", error);
     return NextResponse.json(
