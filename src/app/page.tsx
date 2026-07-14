@@ -11,57 +11,95 @@ type AdCopy = {
   message?: string;
 };
 
+type Step = 1 | 2 | 3;
+
 export default function Home() {
+  // Wizard state
+  const [step, setStep] = useState<Step>(1);
+
+  // Form state
   const [product, setProduct] = useState("");
   const [description, setDescription] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
   const [imagePrompt, setImagePrompt] = useState("");
+
+  // Result state
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [adCopy, setAdCopy] = useState<AdCopy | null>(null);
-  const [loading, setLoading] = useState<"idle" | "image" | "copy" | "both">(
-    "idle"
-  );
+  const [loading, setLoading] = useState(false);
+  const [loadingText, setLoadingText] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [copiedIndex, setCopiedIndex] = useState<string | null>(null);
 
-  const generateImage = async () => {
-    const prompt = imagePrompt || `${product} - ${description}`;
-    if (!prompt) {
-      setError("Lütfen görsel açıklaması veya ürün bilgisi girin");
-      return;
-    }
+  const canProceedStep1 = product.trim() !== "" && description.trim() !== "";
 
-    setLoading("image");
+  const generateAll = async () => {
+    setLoading(true);
     setError(null);
+    setStep(3);
+
+    const imagePromptText =
+      imagePrompt.trim() || `${product} - ${description} reklam görseli`;
+
+    try {
+      setLoadingText("Reklam metni yazılıyor...");
+      const copyRes = await fetch("/api/generate-ad-copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product, description, targetAudience }),
+      });
+      const copyData = await copyRes.json();
+      if (!copyRes.ok) throw new Error(copyData.error);
+      setAdCopy(copyData);
+
+      setLoadingText("Reklam görseli oluşturuluyor... (yaklaşık 10 sn)");
+      const imageRes = await fetch("/api/generate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: imagePromptText }),
+      });
+      const imageData = await imageRes.json();
+      if (!imageRes.ok) throw new Error(imageData.error);
+      setImageUrl(imageData.imageUrl);
+
+      if (imageData.demo || copyData.demo) {
+        setError("Demo modu: Gerçek içerik için OpenRouter API anahtarı ekleyin.");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "İçerik oluşturulamadı");
+    } finally {
+      setLoading(false);
+      setLoadingText("");
+    }
+  };
+
+  const regenerateImage = async () => {
+    setLoading(true);
+    setError(null);
+    setLoadingText("Yeni görsel oluşturuluyor...");
+    const imagePromptText =
+      imagePrompt.trim() || `${product} - ${description} reklam görseli`;
     try {
       const res = await fetch("/api/generate-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt: imagePromptText }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setImageUrl(data.imageUrl);
-      if (data.demo) {
-        setError(data.message);
-      }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Görsel oluşturulamadı"
-      );
+      setError(err instanceof Error ? err.message : "Görsel oluşturulamadı");
     } finally {
-      setLoading("idle");
+      setLoading(false);
+      setLoadingText("");
     }
   };
 
-  const generateCopy = async () => {
-    if (!product || !description) {
-      setError("Lütfen ürün adı ve açıklamasını girin");
-      return;
-    }
-
-    setLoading("copy");
+  const regenerateCopy = async () => {
+    setLoading(true);
     setError(null);
+    setLoadingText("Yeni reklam metni yazılıyor...");
     try {
       const res = await fetch("/api/generate-ad-copy", {
         method: "POST",
@@ -71,64 +109,27 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setAdCopy(data);
-      if (data.demo) {
-        setError(data.message);
-      }
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Reklam metni oluşturulamadı"
       );
     } finally {
-      setLoading("idle");
+      setLoading(false);
+      setLoadingText("");
     }
   };
 
-  const generateBoth = async () => {
-    if (!product || !description) {
-      setError("Lütfen ürün adı ve açıklamasını girin");
-      return;
-    }
-
-    setLoading("both");
-    setError(null);
-
-    // Generate both in parallel
-    const imagePromptText =
-      imagePrompt || `${product} - ${description} reklam görseli`;
-
-    try {
-      const [imageRes, copyRes] = await Promise.all([
-        fetch("/api/generate-image", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: imagePromptText }),
-        }),
-        fetch("/api/generate-ad-copy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ product, description, targetAudience }),
-        }),
-      ]);
-
-      const imageData = await imageRes.json();
-      const copyData = await copyRes.json();
-
-      if (!imageRes.ok) throw new Error(imageData.error);
-      if (!copyRes.ok) throw new Error(copyData.error);
-
-      setImageUrl(imageData.imageUrl);
-      setAdCopy(copyData);
-
-      if (imageData.demo || copyData.demo) {
-        setError("Demo modu: Gerçek içerik için OpenAI API anahtarı ekleyin.");
-      }
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "İçerik oluşturulamadı"
-      );
-    } finally {
-      setLoading("idle");
-    }
+  const downloadImage = () => {
+    if (!imageUrl) return;
+    const link = document.createElement("a");
+    link.href = imageUrl;
+    link.download = `reklam-gorseli-${product
+      .toLowerCase()
+      .replace(/[^a-z0-9ğüşöçı]+/gi, "-")
+      .substring(0, 30)}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const copyToClipboard = (text: string, key: string) => {
@@ -137,7 +138,8 @@ export default function Home() {
     setTimeout(() => setCopiedIndex(null), 2000);
   };
 
-  const resetForm = () => {
+  const resetAll = () => {
+    setStep(1);
     setProduct("");
     setDescription("");
     setTargetAudience("");
@@ -147,13 +149,17 @@ export default function Home() {
     setError(null);
   };
 
-  const isLoading = loading !== "idle";
+  const steps = [
+    { num: 1, title: "Ürün Bilgileri", icon: "📦" },
+    { num: 2, title: "Görsel Ayarları", icon: "🎨" },
+    { num: 3, title: "Sonuçlar", icon: "✨" },
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
       <header className="border-b border-white/20 bg-white/70 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
               <svg
@@ -180,7 +186,7 @@ export default function Home() {
             </div>
           </div>
           <button
-            onClick={resetForm}
+            onClick={resetAll}
             className="text-sm text-slate-500 hover:text-slate-700 transition-colors flex items-center gap-1.5 px-3 py-2 rounded-lg hover:bg-slate-100"
           >
             <svg
@@ -196,12 +202,79 @@ export default function Home() {
                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
               />
             </svg>
-            Sıfırla
+            Baştan Başla
           </button>
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-4xl mx-auto px-4 py-8">
+        {/* Step Indicator */}
+        <div className="mb-10">
+          <div className="flex items-center justify-center">
+            {steps.map((s, idx) => (
+              <div key={s.num} className="flex items-center">
+                <button
+                  onClick={() => {
+                    // Sadece geriye gidilebilir veya tamamlanmış adımlara
+                    if (s.num < step || (s.num === 2 && canProceedStep1)) {
+                      setStep(s.num as Step);
+                    }
+                  }}
+                  className={`flex flex-col items-center gap-2 group ${
+                    s.num <= step ? "cursor-pointer" : "cursor-default"
+                  }`}
+                >
+                  <div
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center text-lg font-bold transition-all duration-300 ${
+                      s.num === step
+                        ? "bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-300 scale-110"
+                        : s.num < step
+                        ? "bg-green-100 text-green-600 border-2 border-green-300"
+                        : "bg-white text-slate-400 border-2 border-slate-200"
+                    }`}
+                  >
+                    {s.num < step ? (
+                      <svg
+                        className="w-6 h-6"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    ) : (
+                      <span>{s.icon}</span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs font-medium ${
+                      s.num === step
+                        ? "text-blue-600"
+                        : s.num < step
+                        ? "text-green-600"
+                        : "text-slate-400"
+                    }`}
+                  >
+                    {s.title}
+                  </span>
+                </button>
+                {idx < steps.length - 1 && (
+                  <div
+                    className={`w-16 sm:w-24 h-1 mx-2 mb-6 rounded-full transition-all duration-300 ${
+                      s.num < step ? "bg-green-300" : "bg-slate-200"
+                    }`}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* Error Banner */}
         {error && (
           <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 shadow-sm">
@@ -223,182 +296,149 @@ export default function Home() {
               onClick={() => setError(null)}
               className="ml-auto text-amber-400 hover:text-amber-600"
             >
-              <svg
-                className="w-4 h-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
+              ✕
             </button>
           </div>
         )}
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* LEFT - Input Form */}
-          <div className="space-y-6">
-            {/* Product Info Card */}
-            <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 p-6 border border-slate-100">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-blue-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-lg font-semibold text-slate-800">
-                  Ürün / Hizmet Bilgileri
-                </h2>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Ürün / Hizmet Adı *
-                  </label>
-                  <input
-                    type="text"
-                    value={product}
-                    onChange={(e) => setProduct(e.target.value)}
-                    placeholder="Örn: Organik Yüz Kremi"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Açıklama *
-                  </label>
-                  <textarea
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    placeholder="Ürününüzün özelliklerini, faydalarını ve öne çıkan yönlerini yazın..."
-                    rows={4}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm resize-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Hedef Kitle (isteğe bağlı)
-                  </label>
-                  <input
-                    type="text"
-                    value={targetAudience}
-                    onChange={(e) => setTargetAudience(e.target.value)}
-                    placeholder="Örn: 25-40 yaş arası kadınlar, cilt bakımına önem verenler"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all text-sm"
-                  />
-                </div>
-              </div>
+        {/* ============ STEP 1: Product Info ============ */}
+        {step === 1 && (
+          <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-8 border border-slate-100">
+            <div className="text-center mb-8">
+              <div className="text-4xl mb-3">📦</div>
+              <h2 className="text-2xl font-bold text-slate-800">
+                Ürününüzü Tanıtın
+              </h2>
+              <p className="text-sm text-slate-500 mt-2">
+                Reklamını yapmak istediğiniz ürün veya hizmetin bilgilerini
+                girin
+              </p>
             </div>
 
-            {/* Image Prompt Card */}
-            <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 p-6 border border-slate-100">
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-purple-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-lg font-semibold text-slate-800">
-                  Görsel Açıklaması
-                </h2>
+            <div className="space-y-5 max-w-lg mx-auto">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Ürün / Hizmet Adı <span className="text-red-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={product}
+                  onChange={(e) => setProduct(e.target.value)}
+                  placeholder="Örn: Organik Yüz Kremi"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                />
               </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Görsel için açıklama metni
-                  </label>
-                  <textarea
-                    value={imagePrompt}
-                    onChange={(e) => setImagePrompt(e.target.value)}
-                    placeholder={`Örn: Şık bir masada, doğal ışık altında organik krem şişesi, yanında taze çiçekler... (Boş bırakırsanız ürün adı kullanılır)`}
-                    rows={3}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all text-sm resize-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Açıklama <span className="text-red-400">*</span>
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Ürününüzün özelliklerini, faydalarını ve öne çıkan yönlerini yazın..."
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all resize-none"
+                />
               </div>
-            </div>
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Hedef Kitle{" "}
+                  <span className="text-slate-400 font-normal">
+                    (isteğe bağlı)
+                  </span>
+                </label>
+                <input
+                  type="text"
+                  value={targetAudience}
+                  onChange={(e) => setTargetAudience(e.target.value)}
+                  placeholder="Örn: 25-40 yaş arası, cilt bakımına önem verenler"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                />
+              </div>
 
-            {/* Action Buttons */}
-            <div className="space-y-3">
               <button
-                onClick={generateBoth}
-                disabled={isLoading || !product || !description}
-                className="w-full py-3.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-2xl shadow-lg shadow-blue-200 hover:shadow-xl hover:shadow-blue-300 hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
+                onClick={() => setStep(2)}
+                disabled={!canProceedStep1}
+                className="w-full py-3.5 mt-4 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-2xl shadow-lg shadow-blue-200 hover:shadow-xl hover:from-blue-600 hover:to-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2"
               >
-                {isLoading ? (
-                  <>
-                    <svg
-                      className="animate-spin h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                      />
-                    </svg>
-                    Oluşturuluyor...
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
-                    </svg>
-                    Hepsini Oluştur (Görsel + Metin)
-                  </>
-                )}
+                Devam Et
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
+                  />
+                </svg>
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* ============ STEP 2: Image Settings ============ */}
+        {step === 2 && (
+          <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-8 border border-slate-100">
+            <div className="text-center mb-8">
+              <div className="text-4xl mb-3">🎨</div>
+              <h2 className="text-2xl font-bold text-slate-800">
+                Görsel Ayarları
+              </h2>
+              <p className="text-sm text-slate-500 mt-2">
+                Görselin nasıl görünmesini istediğinizi anlatın veya boş
+                bırakın, AI sizin için karar versin
+              </p>
+            </div>
+
+            <div className="space-y-5 max-w-lg mx-auto">
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  Görsel Açıklaması{" "}
+                  <span className="text-slate-400 font-normal">
+                    (isteğe bağlı)
+                  </span>
+                </label>
+                <textarea
+                  value={imagePrompt}
+                  onChange={(e) => setImagePrompt(e.target.value)}
+                  placeholder="Örn: Şık bir masada, doğal ışık altında krem şişesi, yanında taze çiçekler ve yeşil yapraklar..."
+                  rows={4}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:border-purple-400 focus:ring-2 focus:ring-purple-100 outline-none transition-all resize-none"
+                />
+                <p className="text-xs text-slate-400 mt-2">
+                  💡 Boş bırakırsanız, ürün bilgilerinize göre otomatik görsel
+                  oluşturulur
+                </p>
+              </div>
+
+              {/* Özet kartı */}
+              <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                  Özet
+                </p>
+                <p className="text-sm text-slate-700">
+                  <span className="font-semibold">Ürün:</span> {product}
+                </p>
+                <p className="text-sm text-slate-600 mt-1 line-clamp-2">
+                  <span className="font-semibold">Açıklama:</span>{" "}
+                  {description}
+                </p>
+                {targetAudience && (
+                  <p className="text-sm text-slate-600 mt-1">
+                    <span className="font-semibold">Hedef Kitle:</span>{" "}
+                    {targetAudience}
+                  </p>
+                )}
+              </div>
 
               <div className="flex gap-3">
                 <button
-                  onClick={generateImage}
-                  disabled={isLoading}
-                  className="flex-1 py-2.5 bg-white text-slate-700 font-medium rounded-2xl border-2 border-slate-200 hover:border-purple-300 hover:bg-purple-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+                  onClick={() => setStep(1)}
+                  className="flex-1 py-3 bg-white text-slate-600 font-medium rounded-2xl border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all duration-200 flex items-center justify-center gap-2"
                 >
                   <svg
                     className="w-4 h-4"
@@ -410,15 +450,236 @@ export default function Home() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+                      d="M11 17l-5-5m0 0l5-5m-5 5h12"
                     />
                   </svg>
-                  Sadece Görsel
+                  Geri
                 </button>
                 <button
-                  onClick={generateCopy}
-                  disabled={isLoading || !product || !description}
-                  className="flex-1 py-2.5 bg-white text-slate-700 font-medium rounded-2xl border-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+                  onClick={generateAll}
+                  className="flex-[2] py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-2xl shadow-lg shadow-blue-200 hover:shadow-xl hover:from-blue-600 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center gap-2"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 10V3L4 14h7v7l9-11h-7z"
+                    />
+                  </svg>
+                  Reklamı Oluştur
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============ STEP 3: Results ============ */}
+        {step === 3 && (
+          <div className="space-y-6">
+            {/* Loading state */}
+            {loading && (
+              <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-10 border border-slate-100 text-center">
+                <div className="inline-block w-14 h-14 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4" />
+                <p className="text-slate-700 font-semibold">{loadingText}</p>
+                <p className="text-sm text-slate-400 mt-1">
+                  Lütfen bekleyin, AI çalışıyor...
+                </p>
+              </div>
+            )}
+
+            {/* Results grid */}
+            {!loading && (imageUrl || adCopy) && (
+              <div className="grid md:grid-cols-2 gap-6">
+                {/* Image Card */}
+                <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-6 border border-slate-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                      <span>🎨</span> Reklam Görseli
+                    </h3>
+                    <button
+                      onClick={regenerateImage}
+                      disabled={loading}
+                      className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      Yeniden Üret
+                    </button>
+                  </div>
+
+                  {imageUrl ? (
+                    <div className="space-y-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={imageUrl}
+                        alt="Reklam görseli"
+                        className="w-full rounded-2xl border border-slate-200 shadow-md"
+                      />
+                      <button
+                        onClick={downloadImage}
+                        className="w-full py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold rounded-2xl shadow-lg shadow-green-200 hover:shadow-xl hover:from-green-600 hover:to-emerald-700 transition-all duration-200 flex items-center justify-center gap-2"
+                      >
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                          />
+                        </svg>
+                        Görseli İndir (PNG)
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="aspect-square bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 text-sm">
+                      Görsel henüz oluşturulmadı
+                    </div>
+                  )}
+                </div>
+
+                {/* Ad Copy Card */}
+                <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 p-6 border border-slate-100">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                      <span>✍️</span> Instagram Metni
+                    </h3>
+                    <button
+                      onClick={regenerateCopy}
+                      disabled={loading}
+                      className="text-xs text-blue-500 hover:text-blue-700 font-medium flex items-center gap-1 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors"
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                        />
+                      </svg>
+                      Yeniden Üret
+                    </button>
+                  </div>
+
+                  {adCopy ? (
+                    <div className="space-y-3">
+                      {/* Headline */}
+                      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-3.5 border border-blue-100">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold text-blue-500 uppercase tracking-wider">
+                            Başlık
+                          </span>
+                          <button
+                            onClick={() =>
+                              copyToClipboard(adCopy.headline, "headline")
+                            }
+                            className="text-blue-400 hover:text-blue-600 text-xs"
+                          >
+                            {copiedIndex === "headline" ? "✓ Kopyalandı" : "Kopyala"}
+                          </button>
+                        </div>
+                        <p className="font-bold text-slate-800">
+                          {adCopy.headline}
+                        </p>
+                      </div>
+
+                      {/* Body */}
+                      <div className="bg-slate-50 rounded-xl p-3.5 border border-slate-100">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            Metin
+                          </span>
+                          <button
+                            onClick={() => copyToClipboard(adCopy.body, "body")}
+                            className="text-slate-400 hover:text-slate-600 text-xs"
+                          >
+                            {copiedIndex === "body" ? "✓ Kopyalandı" : "Kopyala"}
+                          </button>
+                        </div>
+                        <p className="text-sm text-slate-600 leading-relaxed">
+                          {adCopy.body}
+                        </p>
+                      </div>
+
+                      {/* CTA + Hashtags */}
+                      <div className="flex flex-wrap gap-2">
+                        <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-50 text-green-700 text-xs font-semibold rounded-full border border-green-200">
+                          → {adCopy.cta}
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-500">{adCopy.hashtags}</p>
+
+                      {/* Copy All */}
+                      <button
+                        onClick={() => {
+                          const fullText = `${adCopy.headline}\n\n${adCopy.body}\n\n${adCopy.cta}\n\n${adCopy.hashtags}`;
+                          copyToClipboard(fullText, "all");
+                        }}
+                        className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-white font-semibold rounded-2xl transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+                      >
+                        {copiedIndex === "all" ? (
+                          <>✓ Kopyalandı!</>
+                        ) : (
+                          <>
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                              />
+                            </svg>
+                            Tüm Metni Kopyala
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="aspect-square bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center text-slate-400 text-sm">
+                      Metin henüz oluşturulmadı
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Bottom actions */}
+            {!loading && (imageUrl || adCopy) && (
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setStep(2)}
+                  className="px-6 py-3 bg-white text-slate-600 font-medium rounded-2xl border-2 border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all duration-200 flex items-center gap-2"
                 >
                   <svg
                     className="w-4 h-4"
@@ -430,307 +691,34 @@ export default function Home() {
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      d="M11 17l-5-5m0 0l5-5m-5 5h12"
                     />
                   </svg>
-                  Sadece Metin
+                  Ayarlara Dön
+                </button>
+                <button
+                  onClick={resetAll}
+                  className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold rounded-2xl shadow-lg shadow-blue-200 hover:shadow-xl transition-all duration-200 flex items-center gap-2"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Yeni Reklam Oluştur
                 </button>
               </div>
-            </div>
+            )}
           </div>
-
-          {/* RIGHT - Results */}
-          <div className="space-y-6">
-            {/* Image Result */}
-            <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 p-6 border border-slate-100">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-purple-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-lg font-semibold text-slate-800">
-                  Reklam Görseli
-                </h2>
-              </div>
-
-              {imageUrl ? (
-                <div className="relative group">
-                  <img
-                    src={imageUrl}
-                    alt="Reklam görseli"
-                    className="w-full rounded-xl border border-slate-200 shadow-md"
-                  />
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-300 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100">
-                    <button
-                      onClick={() => window.open(imageUrl, "_blank")}
-                      className="bg-white/90 backdrop-blur-sm text-slate-700 px-4 py-2 rounded-xl font-medium shadow-lg"
-                    >
-                      Tam Boyut Görüntüle
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="w-full aspect-square bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
-                  <svg
-                    className="w-12 h-12 mb-3"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-                    />
-                  </svg>
-                  <p className="text-sm font-medium">
-                    Görsel oluşturmak için
-                  </p>
-                  <p className="text-xs mt-1">
-                    ürün bilgilerini girin ve oluşturun
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Ad Copy Result */}
-            <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/50 p-6 border border-slate-100">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <svg
-                    className="w-4 h-4 text-blue-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  </svg>
-                </div>
-                <h2 className="text-lg font-semibold text-slate-800">
-                  Instagram Reklam Metni
-                </h2>
-              </div>
-
-              {adCopy ? (
-                <div className="space-y-4">
-                  {/* Headline */}
-                  <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-xs font-medium text-blue-600 uppercase tracking-wider">
-                        Başlık
-                      </span>
-                      <button
-                        onClick={() =>
-                          copyToClipboard(adCopy.headline, "headline")
-                        }
-                        className="text-blue-400 hover:text-blue-600 transition-colors"
-                      >
-                        {copiedIndex === "headline" ? (
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        ) : (
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                            />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-lg font-bold text-slate-800">
-                      {adCopy.headline}
-                    </p>
-                  </div>
-
-                  {/* Body */}
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">
-                        Metin
-                      </span>
-                      <button
-                        onClick={() => copyToClipboard(adCopy.body, "body")}
-                        className="text-slate-400 hover:text-slate-600 transition-colors"
-                      >
-                        {copiedIndex === "body" ? (
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M5 13l4 4L19 7"
-                            />
-                          </svg>
-                        ) : (
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                            />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                      {adCopy.body}
-                    </p>
-                  </div>
-
-                  {/* CTA + Hashtags */}
-                  <div className="flex flex-wrap gap-3">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-sm font-medium rounded-full border border-green-200">
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M13 7l5 5m0 0l-5 5m5-5H6"
-                        />
-                      </svg>
-                      {adCopy.cta}
-                    </span>
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 text-sm rounded-full border border-blue-200">
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
-                        />
-                      </svg>
-                      {adCopy.hashtags}
-                    </span>
-                  </div>
-
-                  {/* Copy All Button */}
-                  <button
-                    onClick={() => {
-                      const fullText = `${adCopy.headline}\n\n${adCopy.body}\n\n${adCopy.cta}\n\n${adCopy.hashtags}`;
-                      copyToClipboard(fullText, "all");
-                    }}
-                    className="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-all duration-200 flex items-center justify-center gap-2 text-sm"
-                  >
-                    {copiedIndex === "all" ? (
-                      <>
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 13l4 4L19 7"
-                          />
-                        </svg>
-                        Kopyalandı!
-                      </>
-                    ) : (
-                      <>
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                          />
-                        </svg>
-                        Tüm Metni Kopyala
-                      </>
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="w-full aspect-[4/3] bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center text-slate-400">
-                  <svg
-                    className="w-12 h-12 mb-3"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.5}
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  </svg>
-                  <p className="text-sm font-medium">
-                    Reklam metni oluşturmak için
-                  </p>
-                  <p className="text-xs mt-1">
-                    ürün bilgilerini girin ve oluşturun
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* Footer */}
         <footer className="mt-12 text-center py-6 border-t border-slate-200">
