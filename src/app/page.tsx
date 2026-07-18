@@ -1122,30 +1122,28 @@ export default function Home() {
                   </div>
                   {/* ===== END: Inspiration Gallery ===== */}
 
-                  {/* Custom Image Prompt — only if no uploaded & enhanced image */}
-                  {!enhancedImageUrl && (
-                    <div className="border-t border-slate-800/80 pt-4">
-                      <div className="flex justify-between items-center mb-1.5">
-                        <label className="block text-xs font-semibold text-slate-300">
-                          Görsel Detayları <span className="text-slate-500">(İsteğe Bağlı)</span>
-                        </label>
-                        <span className="text-[10px] text-slate-500 font-medium">
-                          {imagePrompt.length}/300
-                        </span>
-                      </div>
-                      <textarea
-                        value={imagePrompt}
-                        onChange={(e) => setImagePrompt(e.target.value)}
-                        maxLength={300}
-                        placeholder="AI'ın üreteceği görselin sahnesini detaylandırın. Örn: Modern minimalist bir yatak odasında, komodin üstünde hafif buhar çıkartan difüzör, arkada yumuşak bir ışık..."
-                        rows={3}
-                        className="w-full px-4 py-3 rounded-xl text-sm glass-input outline-none resize-none"
-                      />
-                      <span className="text-[10px] text-slate-500 block mt-1">
-                        💡 Boş bırakırsanız, ürün bilgilerinize göre reklam temalı bir görsel otomatik hayal edilir.
+                  {/* Custom Image Prompt / AI Guidance — Her zaman gösterilir */}
+                  <div className="border-t border-slate-800/80 pt-4">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Görsel Konumlandırma & AI Yönlendirme <span className="text-slate-500">(İsteğe Bağlı)</span>
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {imagePrompt.length}/300
                       </span>
                     </div>
-                  )}
+                    <textarea
+                      value={imagePrompt}
+                      onChange={(e) => setImagePrompt(e.target.value)}
+                      maxLength={300}
+                      placeholder="Görselin konseptini detaylandırın. Örn: Bir karton kutunun içinde özenle paketlenmiş şekilde dursun, veya manken sokakta araba önünde giysin..."
+                      rows={3}
+                      className="w-full px-4 py-3 rounded-xl text-sm glass-input outline-none resize-none"
+                    />
+                    <span className="text-[10px] text-slate-500 block mt-1">
+                      💡 Yüklediğiniz referans görselin sahne içinde nasıl konumlandırılacağını (örn. kutu içinde, model üzerinde vb.) buraya yazarak AI'ı yönlendirebilirsiniz.
+                    </span>
+                  </div>
 
                   {/* Enhanced image summary banner */}
                   {enhancedImageUrl && (

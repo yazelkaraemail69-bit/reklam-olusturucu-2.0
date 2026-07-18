@@ -161,6 +161,7 @@ export async function POST(request: Request) {
       inspirationStyle = "",
       imageConcept = "lifestyle",  // Varsayılan mankenli
       lifestyleTheme = "urban",    // Varsayılan sokak/araba
+      imagePrompt = "",            // Kullanıcının özel görsel yönlendirmesi
     } = body;
 
     // Görsel normalize et — sadece 1 görsel analiz için kullan
@@ -284,18 +285,25 @@ export async function POST(request: Request) {
       ? `\n(Based on analysis of ${imageCount} product images uploaded by user)`
       : "";
 
+    const userCustomDirection = imagePrompt
+      ? `\n[USER CUSTOM STAGING DIRECTIVES - FOLLOW STRONGLY]
+The user wants to stage the product exactly like this: "${imagePrompt}"`
+      : "";
+
     const enhancedPrompt = `Create a stunning professional commercial advertising image.
 
 Product Name: "${cleanProduct}"
 Product Details: "${cleanDescription}"
 ${analysisDetails}
+${userCustomDirection}
 ${multiImageNote}
 ${stylePromptPart}
 ${conceptPromptPart}
 
 [CRITICAL INSTRUCTIONS - COLOR & PRODUCT FIDELITY]
-1. Product Representation: If the concept is "model/lifestyle", the model in the image MUST be wearing or holding the product. The product's shape, style, and details must match "Exact Product Item" (e.g. if it is baggy pants, they must be baggy pants).
-2. Product Color Accuracy: You MUST keep the product's color EXACTLY as specified in "Exact Original Color(s)". For example, if the color is "black", the product (e.g. pants) the model is wearing MUST be black. Absolutely DO NOT change the product's color (do not make black pants blue, green, etc.).
+1. Staging Preference: If "USER CUSTOM STAGING DIRECTIVES" is provided above, you MUST compositionally arrange the product exactly according to those directives (e.g. if it says "inside a cardboard box, carefully packaged", render the product exactly placed inside a nice open cardboard package box).
+2. Product Representation: If the concept is "model/lifestyle" and no conflicting custom staging is requested, the model in the image MUST be wearing or holding the product. The product's shape, style, and details must match "Exact Product Item" (e.g. if it is baggy pants, they must be baggy pants).
+3. Product Color Accuracy: You MUST keep the product's color EXACTLY as specified in "Exact Original Color(s)". For example, if the color is "black", the product (e.g. pants) the model is wearing MUST be black. Absolutely DO NOT change the product's color (do not make black pants blue, green, etc.).
 3. Environment Contrast: You can use rich lighting or vibrant backdrops, but the product itself MUST retain its original color.
 4. Quality: High-fashion commercial photoshoot styling, crisp focus on the model and product, no text, no logos, no watermarks, premium look.
 5. Aspect Ratio: ${ratioInstruction}`;
