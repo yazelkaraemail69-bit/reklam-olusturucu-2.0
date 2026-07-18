@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 
 // Metin modelleri — sırayla denenir
 const TEXT_MODELS = [
-  "google/gemini-2.5-flash",
+  "openai/gpt-4o",
   "openai/gpt-4o-mini",
+  "google/gemini-2.5-flash",
   "anthropic/claude-3-haiku",
   "meta-llama/llama-3.1-8b-instruct:free",
 ];

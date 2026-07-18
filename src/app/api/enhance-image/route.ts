@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
-const VISION_MODEL = "google/gemini-2.5-flash";
+const VISION_MODEL = "openai/gpt-4o";
 const IMAGE_MODELS = [
+  "openai/dall-e-3",
   "google/gemini-2.5-flash-image",
   "black-forest-labs/flux-1-schnell",
   "black-forest-labs/flux-1-dev",
-  "google/gemini-2.5-flash-image-preview",
 ];
 
 type OpenRouterResponse = {
