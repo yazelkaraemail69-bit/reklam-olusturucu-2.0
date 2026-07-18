@@ -43,6 +43,14 @@ export default function AdMockup({
     return "aspect-square"; // 1:1
   };
 
+  // Kullanıcı görseli yüklediğinde sığdırma şeklini 'contain' yapar ki pantolonu kırpmasın
+  const getImageFitClass = () => {
+    if (imageUrl && (imageUrl.startsWith("blob:") || imageUrl.startsWith("data:") || !imageUrl.startsWith("http"))) {
+      return "w-full h-full object-contain bg-slate-950/90";
+    }
+    return "w-full h-full object-cover";
+  };
+
   const renderMockup = () => {
     switch (platform) {
       case "Instagram":
@@ -76,7 +84,7 @@ export default function AdMockup({
                 <img
                   src={imageUrl}
                   alt="Instagram Reklam Görseli"
-                  className="w-full h-full object-cover"
+                  className={getImageFitClass()}
                 />
               ) : (
                 <div className="absolute inset-0 bg-gradient-to-br from-slate-800 to-slate-950 flex flex-col items-center justify-center p-6 text-center text-slate-500">
@@ -179,7 +187,7 @@ export default function AdMockup({
                 <img
                   src={imageUrl}
                   alt="Facebook Reklam Görseli"
-                  className="w-full h-full object-cover"
+                  className={getImageFitClass()}
                 />
               ) : (
                 <div className="absolute inset-0 bg-[#242526] flex flex-col items-center justify-center p-6 text-center text-slate-500">
@@ -253,7 +261,7 @@ export default function AdMockup({
                   <img
                     src={imageUrl}
                     alt="LinkedIn Reklam Görseli"
-                    className="w-full h-full object-cover"
+                    className={getImageFitClass()}
                   />
                 ) : (
                   <div className="absolute inset-0 bg-[#1d2226] flex items-center justify-center text-slate-500 text-xs">
@@ -322,7 +330,7 @@ export default function AdMockup({
                 <img
                   src={imageUrl}
                   alt="TikTok Reklam Görseli"
-                  className="w-full h-full object-cover"
+                  className={getImageFitClass()}
                 />
               ) : (
                 <div className="flex flex-col items-center justify-center p-6 text-center text-slate-600">

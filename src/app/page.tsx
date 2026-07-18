@@ -852,6 +852,15 @@ export default function Home() {
                   {/* Görsel işlem butonları — yalnızca görsel yüklendiyse göster */}
                   {uploadedImages.length > 0 && (
                     <div className="space-y-3">
+                      {/* Bilgilendirme Kutusu */}
+                      <div className="p-3 bg-indigo-500/5 border border-indigo-500/15 rounded-xl flex gap-2">
+                        <span className="text-xs">💡</span>
+                        <div className="text-[10px] text-slate-400 leading-normal">
+                          <strong className="text-indigo-300 font-bold block mb-0.5">Kendi Ürününüzü mü Satıyorsunuz?</strong>
+                          Yapay Zeka (AI) görseli sıfırdan yeni çizer, bu yüzden pantolonunuzun dikişi ve cepleri farklı olabilir. Kendi ürününüzün **birebir aynısını** reklamda göstermek istiyorsanız lütfen sol taraftaki <strong className="text-emerald-400">Doğrudan Kullan</strong> butonunu seçin.
+                        </div>
+                      </div>
+
                       <div className="flex gap-2">
                         {/* Doğrudan kullan */}
                         <button
