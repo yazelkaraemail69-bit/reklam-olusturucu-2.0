@@ -59,6 +59,10 @@ export default function Home() {
   // --- NEW: Inspiration Gallery State ---
   const [selectedInspirationStyle, setSelectedInspirationStyle] = useState<string | null>(null);
 
+  // --- NEW: Reklam Konsepti State'leri (Mankenli / Araba vb.) ---
+  const [imageConcept, setImageConcept] = useState<"lifestyle" | "studio">("lifestyle");
+  const [lifestyleTheme, setLifestyleTheme] = useState<"urban" | "nature" | "cafe">("urban");
+
   // Scroll ref for enhance result
   const enhanceResultRef = useRef<HTMLDivElement>(null);
 
@@ -131,6 +135,8 @@ export default function Home() {
           description,
           aspectRatio,
           inspirationStyle: selectedInspirationStyle || "",
+          imageConcept,      // Yeni
+          lifestyleTheme,    // Yeni
         }),
       });
       const data = await res.json();
@@ -264,6 +270,8 @@ export default function Home() {
               aspectRatio,
               referenceStyle: selectedInspirationStyle || "",
               uploadedImageAnalysis: analysisText,
+              imageConcept,      // Yeni
+              lifestyleTheme,    // Yeni
             }),
           });
           const imageData = await imageRes.json();
@@ -1039,6 +1047,70 @@ export default function Home() {
                         </button>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Reklam Konsepti (Mankenli / Stüdyo) */}
+                  <div className="border-t border-slate-800/80 pt-4 space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-2">
+                        Reklam Çekim Konsepti
+                      </label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setImageConcept("lifestyle")}
+                          className={`py-3 px-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center gap-1 ${
+                            imageConcept === "lifestyle"
+                              ? "bg-indigo-600/10 border-indigo-500 text-indigo-400"
+                              : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700"
+                          }`}
+                        >
+                          <span className="text-sm">🧍 Mankenli / Yaşam Tarzı</span>
+                          <span className="text-[9px] text-slate-500 font-normal">Ürünü giyen/kullanan model</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setImageConcept("studio")}
+                          className={`py-3 px-3 rounded-xl border text-xs font-bold transition-all flex flex-col items-center gap-1 ${
+                            imageConcept === "studio"
+                              ? "bg-indigo-600/10 border-indigo-500 text-indigo-400"
+                              : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700"
+                          }`}
+                        >
+                          <span className="text-sm">📦 Sadece Ürün (Stüdyo)</span>
+                          <span className="text-[9px] text-slate-500 font-normal">Sadece ürünün kendisi</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Mankenli seçildiyse Arka Plan Teması */}
+                    {imageConcept === "lifestyle" && (
+                      <div className="animate-fadeIn">
+                        <label className="block text-xs font-semibold text-slate-300 mb-2">
+                          Manken Konumu & Arka Plan
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { id: "urban", label: "Sokak & Lüks Araba", desc: "Sportif urban tarz" },
+                            { id: "nature", label: "Doğa / Orman", desc: "Doğal & yeşil alan" },
+                            { id: "cafe", label: "Şık Kafe / Restoran", desc: "Kapalı modern mekan" },
+                          ].map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => setLifestyleTheme(item.id as any)}
+                              className={`py-2 px-2.5 rounded-xl border text-[10px] font-bold transition-all text-center flex flex-col items-center justify-center gap-0.5 ${
+                                lifestyleTheme === item.id
+                                  ? "bg-indigo-600/10 border-indigo-500 text-indigo-400"
+                                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700"
+                              }`}
+                            >
+                              <span>{item.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* ===== NEW: Inspiration Gallery ===== */}

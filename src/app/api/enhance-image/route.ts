@@ -159,6 +159,8 @@ export async function POST(request: Request) {
       description = "",
       aspectRatio = "1:1",
       inspirationStyle = "",
+      imageConcept = "lifestyle",  // Varsayılan mankenli
+      lifestyleTheme = "urban",    // Varsayılan sokak/araba
     } = body;
 
     // Görsel normalize et — sadece 1 görsel analiz için kullan
@@ -193,7 +195,7 @@ export async function POST(request: Request) {
           subject: "Ürün görseli",
           colors: "Canlı, profesyonel renkler",
           style: "Modern reklam stili",
-          lighting: "Stüdyo aydınlatması",
+          lighting: "Stüdyo aydınlaması",
           background: "Temiz, sade arka plan",
           mood: "Profesyonel ve güvenilir",
           audience: "Genel tüketici kitlesi",
@@ -257,7 +259,20 @@ export async function POST(request: Request) {
       ? `\nVisual style: ${styleInstructions[inspirationStyle]}.`
       : "";
 
-    // 4) Prompt oluştur (Renk ve ürün detaylarını zorunlu kılacak yapı)
+    // 4) Konsept Prompt'u oluştur
+    let conceptPromptPart = "";
+    if (imageConcept === "lifestyle") {
+      if (lifestyleTheme === "urban") {
+        conceptPromptPart = `Scene: A professional high-fashion model wearing/using the product, posing outdoors on a trendy urban street city background, standing confidently in front of a sleek modern luxury sports car. Urban fashion look, commercial campaign style.`;
+      } else if (lifestyleTheme === "nature") {
+        conceptPromptPart = `Scene: A professional model wearing/using the product, posing outdoors in a beautiful lush green forest or natural organic garden, soft natural window light rays filtering through the leaves. Eco-lifestyle look.`;
+      } else {
+        conceptPromptPart = `Scene: A professional model wearing/using the product, posing inside a highly modern, cozy boutique cafe or elegant high-end restaurant with warm bokeh ambient lighting. Luxury lifestyle look.`;
+      }
+    } else {
+      conceptPromptPart = `Scene: A premium commercial product studio photography shot. The product is placed centered on a professional clean studio backdrop or pedestal with perfect highlight reflections.`;
+    }
+
     const analysisDetails = Object.keys(analysisJson).length > 0
       ? `\n[CRITICAL PRODUCT FEATURES TO PRESERVE]
 - Exact Product Item: ${analysisJson.subject || "product"}
@@ -269,20 +284,21 @@ export async function POST(request: Request) {
       ? `\n(Based on analysis of ${imageCount} product images uploaded by user)`
       : "";
 
-    const enhancedPrompt = `Create a stunning professional commercial advertising image showcasing the product.
+    const enhancedPrompt = `Create a stunning professional commercial advertising image.
 
 Product Name: "${cleanProduct}"
 Product Details: "${cleanDescription}"
 ${analysisDetails}
 ${multiImageNote}
 ${stylePromptPart}
+${conceptPromptPart}
 
-[CRITICAL INSTRUCTIONS - COLOR & SHAPE FIDELITY]
-1. Product Color Accuracy: You MUST keep the product's color EXACTLY as specified in "Exact Original Color(s)". For example, if it says "black", the product in the generated image MUST be black. Absolutely DO NOT change the product's color (do not make black pants blue, green, etc.).
-2. Product Type/Shape Sincerity: The product in the generated image must match the "Exact Product Item" and "Product Style/Cut". If it is baggy pants, they must be baggy pants.
-3. Contrast: You can use vibrant colors or rich gradients for the background, environment, and lights, but the product itself MUST retain its original color.
-4. Professional commercial studio photography quality, clean focus on the product, no text, no logos, no watermarks, premium look.
-5. Symmetrical or rule-of-thirds centered product presentation.`;
+[CRITICAL INSTRUCTIONS - COLOR & PRODUCT FIDELITY]
+1. Product Representation: If the concept is "model/lifestyle", the model in the image MUST be wearing or holding the product. The product's shape, style, and details must match "Exact Product Item" (e.g. if it is baggy pants, they must be baggy pants).
+2. Product Color Accuracy: You MUST keep the product's color EXACTLY as specified in "Exact Original Color(s)". For example, if the color is "black", the product (e.g. pants) the model is wearing MUST be black. Absolutely DO NOT change the product's color (do not make black pants blue, green, etc.).
+3. Environment Contrast: You can use rich lighting or vibrant backdrops, but the product itself MUST retain its original color.
+4. Quality: High-fashion commercial photoshoot styling, crisp focus on the model and product, no text, no logos, no watermarks, premium look.
+5. Aspect Ratio: ${ratioInstruction}`;
 
     // 5) Görsel üret — modelleri sırayla dene
     const errors: string[] = [];

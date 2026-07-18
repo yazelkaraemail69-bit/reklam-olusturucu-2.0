@@ -108,6 +108,8 @@ export async function POST(request: Request) {
       aspectRatio = "1:1",
       referenceStyle = "",
       uploadedImageAnalysis = "",
+      imageConcept = "lifestyle",  // Varsayılan mankenli
+      lifestyleTheme = "urban",    // Varsayılan araba/sokak
     } = await request.json();
 
     if (!prompt) {
@@ -141,13 +143,27 @@ export async function POST(request: Request) {
         ? ` Style: ${STYLE_PROMPT_MAP[referenceStyle]}.`
         : "";
 
+    // Konsept ve Temalar
+    let conceptPromptPart = "";
+    if (imageConcept === "lifestyle") {
+      if (lifestyleTheme === "urban") {
+        conceptPromptPart = ` Scene: A professional model wearing/using the product, posing outdoors on a stylish city street in front of a modern premium luxury sports car. Urban fashion model photoshoot styling.`;
+      } else if (lifestyleTheme === "nature") {
+        conceptPromptPart = ` Scene: A professional model wearing/using the product, posing outdoors in a beautiful natural green forest or botanical garden. Natural organic lighting.`;
+      } else {
+        conceptPromptPart = ` Scene: A professional model wearing/using the product, posing inside a highly modern boutique cafe or cozy upscale restaurant.`;
+      }
+    } else {
+      conceptPromptPart = ` Scene: A premium commercial product studio photography shot. Clean solid backdrop focus on the product, centered placement.`;
+    }
+
     // Analiz ve renk koruma kuralları
     const analysisPart = uploadedImageAnalysis
-      ? ` [CRITICAL] Preserve these details: ${uploadedImageAnalysis}. The product color and shape MUST match these specifications exactly. Do not change the product color (e.g. if original is black, do not generate blue or any other color).`
+      ? ` [CRITICAL COLOR & PRODUCT FIDELITY] You MUST keep the product's color and shape matching this reference: ${uploadedImageAnalysis}. If the reference says the product is black, the model MUST wear a black item (e.g. black pants). DO NOT change the product color.`
       : "";
 
     // Kısa ve net prompt (token tasarrufu için)
-    const imagePrompt = `Professional commercial advertising product photography for: ${prompt.substring(0, 200)}.${analysisPart}${stylePart} Aspect ratio: ${ratioInstruction} Symmetrical centered presentation, studio lighting, clean product focus, no text, no watermarks.`;
+    const imagePrompt = `Professional commercial advertising shot for: ${prompt.substring(0, 150)}.${conceptPromptPart}${analysisPart}${stylePart} Aspect ratio: ${ratioInstruction} Symmetrical presentation, high quality, no text, no watermarks.`;
 
     // Modelleri sırayla dene
     const errors: string[] = [];
