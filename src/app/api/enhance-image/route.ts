@@ -204,6 +204,9 @@ export async function POST(request: Request) {
       });
     }
 
+    const cleanProduct = product.substring(0, 100);
+    const cleanDescription = description.substring(0, 600);
+
     // 1) Seçili görseli vision ile analiz et (sadece 1 görsel gönderilir)
     let analysisText = "";
     let analysisJson: Record<string, string> = {};
@@ -213,8 +216,8 @@ export async function POST(request: Request) {
         apiKey,
         primaryImage,
         imageCount,
-        product,
-        description
+        cleanProduct,
+        cleanDescription
       );
 
       // JSON parse — markdown fence varsa temizle
@@ -269,8 +272,8 @@ export async function POST(request: Request) {
 
     const enhancedPrompt = `Create a stunning professional advertising image for this product.
 
-Product: "${product || "product"}"
-Description: "${description || "high quality product"}"
+Product: "${cleanProduct}"
+Description: "${cleanDescription}"
 ${analysisDetails}
 ${multiImageNote}
 ${stylePromptPart}

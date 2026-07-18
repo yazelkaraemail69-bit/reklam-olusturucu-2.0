@@ -738,25 +738,37 @@ export default function Home() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Ürün / Hizmet Adı <span className="text-red-400">*</span>
-                    </label>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Ürün / Hizmet Adı <span className="text-red-400">*</span>
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {product.length}/80
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={product}
                       onChange={(e) => setProduct(e.target.value)}
+                      maxLength={80}
                       placeholder="Örn: Akıllı Aromaterapi Difüzörü"
                       className="w-full px-4 py-3 rounded-xl text-sm glass-input outline-none"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Ürün Özellikleri & Faydaları <span className="text-red-400">*</span>
-                    </label>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Ürün Özellikleri & Faydaları <span className="text-red-400">*</span>
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {description.length}/600
+                      </span>
+                    </div>
                     <textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
+                      maxLength={600}
                       placeholder="Ürününüz ne işe yarar? Rakiplerinden ayıran en çarpıcı 2-3 faydasını buraya yazın..."
                       rows={3}
                       className="w-full px-4 py-3 rounded-xl text-sm glass-input outline-none resize-none"
@@ -764,13 +776,19 @@ export default function Home() {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                      Hedef Kitle <span className="text-slate-500">(İsteğe Bağlı)</span>
-                    </label>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-xs font-semibold text-slate-300">
+                        Hedef Kitle <span className="text-slate-500">(İsteğe Bağlı)</span>
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-medium">
+                        {targetAudience.length}/150
+                      </span>
+                    </div>
                     <input
                       type="text"
                       value={targetAudience}
                       onChange={(e) => setTargetAudience(e.target.value)}
+                      maxLength={150}
                       placeholder="Örn: Ev ofis çalışanları, yoga severler, 25-45 yaş arası kadınlar"
                       className="w-full px-4 py-3 rounded-xl text-sm glass-input outline-none"
                     />
@@ -1024,12 +1042,18 @@ export default function Home() {
                   {/* Custom Image Prompt — only if no uploaded & enhanced image */}
                   {!enhancedImageUrl && (
                     <div className="border-t border-slate-800/80 pt-4">
-                      <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                        Görsel Detayları <span className="text-slate-500">(İsteğe Bağlı)</span>
-                      </label>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="block text-xs font-semibold text-slate-300">
+                          Görsel Detayları <span className="text-slate-500">(İsteğe Bağlı)</span>
+                        </label>
+                        <span className="text-[10px] text-slate-500 font-medium">
+                          {imagePrompt.length}/300
+                        </span>
+                      </div>
                       <textarea
                         value={imagePrompt}
                         onChange={(e) => setImagePrompt(e.target.value)}
+                        maxLength={300}
                         placeholder="AI'ın üreteceği görselin sahnesini detaylandırın. Örn: Modern minimalist bir yatak odasında, komodin üstünde hafif buhar çıkartan difüzör, arkada yumuşak bir ışık..."
                         rows={3}
                         className="w-full px-4 py-3 rounded-xl text-sm glass-input outline-none resize-none"
@@ -1285,39 +1309,57 @@ export default function Home() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Marka / Şirket Adı <span className="text-red-400">*</span>
-                  </label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Marka / Şirket Adı <span className="text-red-400">*</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {logoBrandName.length}/50
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={logoBrandName}
                     onChange={(e) => setLogoBrandName(e.target.value)}
+                    maxLength={50}
                     placeholder="Örn: Kahve Dünyası"
                     className="w-full px-4 py-3 rounded-xl text-sm glass-input outline-none font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Slogan / Alt Başlık <span className="text-slate-500">(İsteğe Bağlı)</span>
-                  </label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Slogan / Alt Başlık <span className="text-slate-500">(İsteğe Bağlı)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {logoTagline.length}/100
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={logoTagline}
                     onChange={(e) => setLogoTagline(e.target.value)}
+                    maxLength={100}
                     placeholder="Örn: Taze Çekilmiş Lezzet"
                     className="w-full px-4 py-3 rounded-xl text-sm glass-input outline-none font-medium"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                    Sektör <span className="text-slate-500">(İsteğe Bağlı)</span>
-                  </label>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Sektör <span className="text-slate-500">(İsteğe Bağlı)</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-medium">
+                      {logoIndustry.length}/80
+                    </span>
+                  </div>
                   <input
                     type="text"
                     value={logoIndustry}
                     onChange={(e) => setLogoIndustry(e.target.value)}
+                    maxLength={80}
                     placeholder="Örn: Gıda / Kafe"
                     className="w-full px-4 py-3 rounded-xl text-sm glass-input outline-none font-medium"
                   />
