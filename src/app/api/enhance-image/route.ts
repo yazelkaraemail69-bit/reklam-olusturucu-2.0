@@ -257,36 +257,32 @@ export async function POST(request: Request) {
       ? `\nVisual style: ${styleInstructions[inspirationStyle]}.`
       : "";
 
-    // 4) Prompt oluştur
+    // 4) Prompt oluştur (Renk ve ürün detaylarını zorunlu kılacak yapı)
     const analysisDetails = Object.keys(analysisJson).length > 0
-      ? `\nProduct image analysis:
-- Subject: ${analysisJson.subject || "product"}
-- Colors: ${analysisJson.colors || "professional colors"}
-- Style: ${analysisJson.style || "modern"}
-- Lighting: ${analysisJson.lighting || "studio"}
-- Mood: ${analysisJson.mood || "professional"}`
+      ? `\n[CRITICAL PRODUCT FEATURES TO PRESERVE]
+- Exact Product Item: ${analysisJson.subject || "product"}
+- Exact Original Color(s): ${analysisJson.colors || "original colors"}
+- Product Style/Cut: ${analysisJson.style || "modern"}`
       : "";
 
     const multiImageNote = imageCount > 1
       ? `\n(Based on analysis of ${imageCount} product images uploaded by user)`
       : "";
 
-    const enhancedPrompt = `Create a stunning professional advertising image for this product.
+    const enhancedPrompt = `Create a stunning professional commercial advertising image showcasing the product.
 
-Product: "${cleanProduct}"
-Description: "${cleanDescription}"
+Product Name: "${cleanProduct}"
+Product Details: "${cleanDescription}"
 ${analysisDetails}
 ${multiImageNote}
 ${stylePromptPart}
 
-Requirements:
-- ${ratioInstruction}
-- Professional commercial photography quality
-- Scroll-stopping visual impact
-- Perfect studio lighting
-- No text, watermarks, or logos in the image
-- Premium, aspirational feel
-- Rule of thirds or centered hero shot composition`;
+[CRITICAL INSTRUCTIONS - COLOR & SHAPE FIDELITY]
+1. Product Color Accuracy: You MUST keep the product's color EXACTLY as specified in "Exact Original Color(s)". For example, if it says "black", the product in the generated image MUST be black. Absolutely DO NOT change the product's color (do not make black pants blue, green, etc.).
+2. Product Type/Shape Sincerity: The product in the generated image must match the "Exact Product Item" and "Product Style/Cut". If it is baggy pants, they must be baggy pants.
+3. Contrast: You can use vibrant colors or rich gradients for the background, environment, and lights, but the product itself MUST retain its original color.
+4. Professional commercial studio photography quality, clean focus on the product, no text, no logos, no watermarks, premium look.
+5. Symmetrical or rule-of-thirds centered product presentation.`;
 
     // 5) Görsel üret — modelleri sırayla dene
     const errors: string[] = [];

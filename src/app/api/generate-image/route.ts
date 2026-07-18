@@ -141,13 +141,13 @@ export async function POST(request: Request) {
         ? ` Style: ${STYLE_PROMPT_MAP[referenceStyle]}.`
         : "";
 
-    // Analiz
+    // Analiz ve renk koruma kuralları
     const analysisPart = uploadedImageAnalysis
-      ? ` Product context: ${uploadedImageAnalysis}.`
+      ? ` [CRITICAL] Preserve these details: ${uploadedImageAnalysis}. The product color and shape MUST match these specifications exactly. Do not change the product color (e.g. if original is black, do not generate blue or any other color).`
       : "";
 
     // Kısa ve net prompt (token tasarrufu için)
-    const imagePrompt = `Professional advertising photo for: ${prompt.substring(0, 200)}.${analysisPart}${stylePart} Aspect ratio: ${ratioInstruction} Commercial product photography, studio lighting, vibrant colors, no text or watermarks.`;
+    const imagePrompt = `Professional commercial advertising product photography for: ${prompt.substring(0, 200)}.${analysisPart}${stylePart} Aspect ratio: ${ratioInstruction} Symmetrical centered presentation, studio lighting, clean product focus, no text, no watermarks.`;
 
     // Modelleri sırayla dene
     const errors: string[] = [];
