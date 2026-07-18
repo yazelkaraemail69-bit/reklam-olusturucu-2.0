@@ -1,26 +1,50 @@
 import { NextResponse } from "next/server";
 
-const SYSTEM_PROMPT = `Sen profesyonel bir reklam metni yazarısın. Verilen ürün/hizmet bilgisine göre Instagram için reklam metni oluştur.
+const SYSTEM_PROMPT = `Sen profesyonel bir dijital pazarlama ve reklam metni yazarısın (Copywriter).
+Verilen ürün/hizmet, hedef kitle, ton, seçilen platform ve dil bilgisine göre 3 farklı reklam metni varyasyonu oluştur.
 
-Aşağıdaki formatta yanıt ver (JSON olarak):
+Her bir varyasyon farklı bir pazarlama açısı ve psikolojik tetikleyici kullanmalıdır:
+1. Varyasyon (Fayda & Değer Odaklı): Ürünün/hizmetin çözdüğü probleme ve sunduğu somut faydalara odaklanmalıdır.
+2. Varyasyon (Duygusal & Hikaye Odaklı): Kullanıcının duygularına hitap etmeli, bir hikaye veya bağ kurulabilir bir senaryo sunmalıdır.
+3. Varyasyon (Kısa & Doğrudan Eylem Odaklı): Hızlı okunan, merak uyandıran veya aciliyet (FOMO) hissi veren, doğrudan CTA'e yönlendiren yapıda olmalıdır.
+
+Aşağıdaki JSON formatında yanıt ver:
 {
-  "headline": "Dikkat çekici bir başlık (maksimum 10 kelime)",
-  "body": "Ana reklam metni (40-80 kelime arası, samimi ve ikna edici Türkçe ile)",
-  "cta": "Harekete geçirici mesaj (örn: Hemen Al, Keşfet, Şimdi Dene, vs.)",
-  "hashtags": "5 ilgili hashtag (virgülle ayrılmış)"
+  "variations": [
+    {
+      "id": "v1",
+      "strategy": "Fayda & Özellik Odaklı",
+      "headline": "Dikkat çekici başlık (Platforma uygun uzunlukta)",
+      "body": "Reklam gövde metni (Platforma uygun uzunlukta)",
+      "cta": "Harekete geçirici mesaj (örn: Hemen Al, Keşfet, Kayıt Ol)"
+    },
+    {
+      "id": "v2",
+      "strategy": "Duygusal & Hikaye Odaklı",
+      "headline": "...",
+      "body": "...",
+      "cta": "..."
+    },
+    {
+      "id": "v3",
+      "strategy": "Kısa & Eylem Odaklı",
+      "headline": "...",
+      "body": "...",
+      "cta": "..."
+    }
+  ],
+  "hashtags": "Platforma uygun 5 adet hashtag (boşluklarla ayrılmış, örn: #urun #kalite ...)"
 }
 
 Kurallar:
-- Metin samimi, sıcak ve profesyonel olsun
-- Hedef kitleye doğrudan hitap et
-- Ürünün/hizmetin faydalarını vurgula
-- Instagram kullanıcılarına uygun, görsel odaklı ve kısa metinler yaz
-- Duygusal tetikleyiciler kullan (aciliyet, özel hissetme, FOMO)
-- Türkçe karakterleri düzgün kullan`;
+- Yanıt SADECE geçerli bir JSON olmalıdır. Markdown veya ek açıklama yazma.
+- Metinler belirtilen dilde yazılmalıdır.
+- Seçilen ton ve stile tam olarak uymalıdır.
+- Belirtilen platformun karakter limitleri ve genel dil yapısına uygun olmalıdır (Örn: LinkedIn profesyonel/kurumsal, Google Arama başlık/açıklama formatı, TikTok kanca ve senaryo formatı).`;
 
 export async function POST(request: Request) {
   try {
-    const { product, description, targetAudience } = await request.json();
+    const { product, description, targetAudience, platform = "Instagram", tone = "Profesyonel", language = "Türkçe" } = await request.json();
 
     if (!product || !description) {
       return NextResponse.json(
@@ -32,24 +56,44 @@ export async function POST(request: Request) {
     const userPrompt = `Ürün/Hizmet: ${product}
 Açıklama: ${description}
 ${targetAudience ? `Hedef Kitle: ${targetAudience}` : ""}
+Reklam Platformu: ${platform}
+Metin Tonu: ${tone}
+Yazım Dili: ${language}
 
-Yukarıdaki bilgilere göre Instagram reklam metni oluştur.`;
+Yukarıdaki bilgilere göre reklam metinlerini oluştur.`;
 
-    const apiKey = process.env.OPENROUTER_API_KEY;
+    const userApiKey = request.headers.get("x-user-api-key");
+    const apiKey = userApiKey || process.env.OPENROUTER_API_KEY;
 
     if (!apiKey || apiKey === "your_openrouter_api_key_here") {
-      // Demo mode - return example data when no API key is configured
+      // Demo mode - return example data in the new format
       return NextResponse.json({
-        headline: `✨ ${product} ile Fark Yarat!`,
-        body: `${product}, hayatınızı kolaylaştırmak için tasarlandı. ${description.substring(
-          0,
-          60
-        )}... Profesyonel kalitede, uygun fiyatlı ve herkes için erişilebilir. Kaçırmayın, sınırlı stok!`,
-        cta: "Hemen Keşfet",
+        variations: [
+          {
+            id: "v1",
+            strategy: "Fayda & Özellik Odaklı",
+            headline: `✨ ${product} ile Hayatını Kolaylaştır!`,
+            body: `${product} günlük rutinlerinizde size zaman kazandırmak için tasarlandı. Doğal bileşenleri ve güçlü formülüyle ${description.substring(0, 100)}... Deneyin ve farkı hemen görün!`,
+            cta: "Şimdi Satın Al"
+          },
+          {
+            id: "v2",
+            strategy: "Duygusal & Hikaye Odaklı",
+            headline: "Hak Ettiğin Özeni Kendine Göster",
+            body: "Her gün koşturmaca içinde kendini unutuyor musun? Kendine küçük bir iyilik yapmanın tam zamanı. `${product}` ile güne taze bir başlangıç yap, enerjini tazele ve günün tadını çıkar.",
+            cta: "Daha Fazla Bilgi"
+          },
+          {
+            id: "v3",
+            strategy: "Kısa & Eylem Odaklı",
+            headline: "Büyük Değişim, Küçük Adım!",
+            body: "Beklemek yok! ${product} ile anında sonuç. Sınırlı stok ve lansmana özel %20 indirim fırsatını kaçırmayın.",
+            cta: "Fırsatı Yakala"
+          }
+        ],
         hashtags: "#reklam #yenilik #fırsat #kalite #keşfet",
         demo: true,
-        message:
-          "Demo modu: Gerçek metin için OpenRouter API anahtarı ekleyin.",
+        message: "Demo modu: Gerçek metinler için OpenRouter API anahtarı ekleyin."
       });
     }
 
@@ -65,12 +109,13 @@ Yukarıdaki bilgilere göre Instagram reklam metni oluştur.`;
         },
         body: JSON.stringify({
           model: "openai/gpt-4o-mini",
+          response_format: { type: "json_object" },
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             { role: "user", content: userPrompt },
           ],
-          temperature: 0.8,
-          max_tokens: 500,
+          temperature: 0.75,
+          max_tokens: 800,
         }),
       }
     );
@@ -89,7 +134,6 @@ Yukarıdaki bilgilere göre Instagram reklam metni oluştur.`;
     // Parse JSON from response
     let parsed;
     try {
-      // Try to extract JSON from the response (it might be wrapped in markdown code blocks)
       const jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         parsed = JSON.parse(jsonMatch[0]);
@@ -97,11 +141,17 @@ Yukarıdaki bilgilere göre Instagram reklam metni oluştur.`;
         parsed = JSON.parse(content);
       }
     } catch {
-      // If parsing fails, return raw content
+      // If parsing fails, fall back to structuring raw content
       return NextResponse.json({
-        headline: "Reklam Metniniz Hazır!",
-        body: content,
-        cta: "Hemen İletişime Geç",
+        variations: [
+          {
+            id: "v1",
+            strategy: "Fayda & Özellik Odaklı",
+            headline: "Reklam Metniniz Hazır!",
+            body: content,
+            cta: "Hemen İletişime Geç"
+          }
+        ],
         hashtags: "#reklam #ürün #hizmet",
       });
     }
@@ -119,4 +169,4 @@ Yukarıdaki bilgilere göre Instagram reklam metni oluştur.`;
       { status: 500 }
     );
   }
-}
+}
