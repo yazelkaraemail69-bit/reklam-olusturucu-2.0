@@ -87,7 +87,9 @@ export default function Home() {
   }, []);
 
   const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const key = e.target.value;
+    // API anahtarındaki görünmez karakterleri ve BOM'u istemci tarafında da temizle
+    const rawKey = e.target.value;
+    const key = rawKey.replace(/[\uFEFF\u200B\u200C\u200D\u2060]/g, "").trim();
     setUserApiKey(key);
     localStorage.setItem("openrouter_api_key", key);
   };

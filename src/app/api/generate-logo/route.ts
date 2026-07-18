@@ -74,7 +74,8 @@ export async function POST(request: Request) {
     }
 
     const userApiKey = request.headers.get("x-user-api-key");
-    const apiKey = userApiKey || process.env.OPENROUTER_API_KEY;
+    const rawApiKey = userApiKey || process.env.OPENROUTER_API_KEY;
+    const apiKey = rawApiKey ? rawApiKey.replace(/[\uFEFF\u200B\u200C\u200D\u2060]/g, "").trim() : "";
 
     if (!apiKey || apiKey === "your_openrouter_api_key_here") {
       const demoImageUrl = DEMO_LOGOS[Math.floor(Math.random() * DEMO_LOGOS.length)];
