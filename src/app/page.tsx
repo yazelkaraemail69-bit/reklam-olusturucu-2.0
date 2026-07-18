@@ -203,12 +203,13 @@ export default function Home() {
     const imagePromptText =
       imagePrompt.trim() || `${product} - ${description} reklam görseli`;
 
-    // Yüklenen görselden analiz metni oluştur
-    const analysisText = Object.keys(imageAnalysis).length > 0
-      ? `Subject: ${imageAnalysis.subject || ""}, Style: ${imageAnalysis.style || ""}, Colors: ${imageAnalysis.colors || ""}`
-      : "";
+    const analysisText =
+      Object.keys(imageAnalysis).length > 0
+        ? `Subject: ${imageAnalysis.subject || ""}, Style: ${imageAnalysis.style || ""}, Colors: ${imageAnalysis.colors || ""}`
+        : "";
 
     try {
+      // 1) Reklam metinlerini üret
       setLoadingText("Reklam metinleri yazılıyor...");
       const copyRes = await fetch("/api/generate-ad-copy", {
         method: "POST",
@@ -226,53 +227,82 @@ export default function Home() {
         }),
       });
       const copyData = await copyRes.json();
-      if (!copyRes.ok) throw new Error(copyData.error);
-      
-      setVariations(copyData.variations || []);
+
+      if (!copyRes.ok) {
+        throw new Error(copyData.error || "Reklam metinleri oluşturulamadı");
+      }
+
+      const variations = copyData.variations || [];
+      if (variations.length === 0) {
+        throw new Error("Metin varyasyonları alınamadı. Lütfen tekrar deneyin.");
+      }
+
+      setVariations(variations);
       setHashtags(copyData.hashtags || "");
       setSelectedVariationIndex(0);
 
-      // Eğer zaten geliştirilmiş görsel varsa tekrar üretme
+      // 2) Görsel — zaten geliştirilen görsel varsa kullan
       if (enhancedImageUrl && useUploadedImage) {
         setImageUrl(enhancedImageUrl);
         setIsDemoMode(!!copyData.demo);
         if (copyData.demo) {
-          setError("Demo modu aktif: Kendi metinleriniz için OpenRouter API anahtarınızı ekleyin.");
+          setError("Demo modu: Gerçek metinler için ayarlardan API anahtarı ekleyin.");
         }
       } else {
-        setLoadingText("AI Reklam görseli hayal ediliyor... (yaklaşık 10 sn)");
-        const imageRes = await fetch("/api/generate-image", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(userApiKey ? { "x-user-api-key": userApiKey } : {}),
-          },
-          body: JSON.stringify({
-            prompt: imagePromptText,
-            aspectRatio,
-            referenceStyle: selectedInspirationStyle || "",
-            uploadedImageAnalysis: analysisText,
-          }),
-        });
-        const imageData = await imageRes.json();
-        if (!imageRes.ok) throw new Error(imageData.error);
-        
-        setImageUrl(imageData.imageUrl);
-        setIsDemoMode(!!imageData.demo || !!copyData.demo);
+        setLoadingText("AI reklam görseli oluşturuluyor... (10-30 sn)");
+        try {
+          const imageRes = await fetch("/api/generate-image", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(userApiKey ? { "x-user-api-key": userApiKey } : {}),
+            },
+            body: JSON.stringify({
+              prompt: imagePromptText,
+              aspectRatio,
+              referenceStyle: selectedInspirationStyle || "",
+              uploadedImageAnalysis: analysisText,
+            }),
+          });
+          const imageData = await imageRes.json();
 
-        if (imageData.demo || copyData.demo) {
+          if (!imageRes.ok) {
+            // Görsel üretilemedi — fallback varsa onu kullan, takılma
+            const fallback = imageData.fallbackImageUrl;
+            if (fallback) {
+              setImageUrl(fallback);
+              setError(
+                `Görsel üretilemedi (${imageData.error || "API hatası"}). Demo görsel gösteriliyor.`
+              );
+            } else {
+              setError(
+                `Görsel oluşturulamadı: ${imageData.error || "Bilinmeyen hata"}. Metinler hazır, görseli daha sonra yeniden deneyebilirsiniz.`
+              );
+            }
+          } else {
+            setImageUrl(imageData.imageUrl);
+            setIsDemoMode(!!imageData.demo || !!copyData.demo);
+            if (imageData.demo || copyData.demo) {
+              setError(
+                "Demo modu: Gerçek görsel ve metinler için ayarlardan OpenRouter API anahtarı ekleyin."
+              );
+            }
+          }
+        } catch (imgErr) {
+          // Görsel hatası tüm akışı durdurmasın
           setError(
-            "Demo modu aktif: Kendi görsel ve metinleriniz için yukarıdaki ayarlar simgesinden OpenRouter API anahtarınızı ekleyebilirsiniz."
+            `Görsel yüklenemedi: ${imgErr instanceof Error ? imgErr.message : "Bağlantı hatası"}. Metinler hazır.`
           );
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "İçerik oluşturulamadı");
+      setError(err instanceof Error ? err.message : "İçerik oluşturulamadı. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
       setLoadingText("");
     }
   };
+
 
   const regenerateImage = async () => {
     setLoading(true);

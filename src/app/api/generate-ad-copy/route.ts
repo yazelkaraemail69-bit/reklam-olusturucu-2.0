@@ -1,50 +1,34 @@
 import { NextResponse } from "next/server";
 
-const SYSTEM_PROMPT = `Sen profesyonel bir dijital pazarlama ve reklam metni yazarısın (Copywriter).
-Verilen ürün/hizmet, hedef kitle, ton, seçilen platform ve dil bilgisine göre 3 farklı reklam metni varyasyonu oluştur.
+// Metin modelleri — sırayla denenir
+const TEXT_MODELS = [
+  "google/gemini-2.5-flash",
+  "openai/gpt-4o-mini",
+  "anthropic/claude-3-haiku",
+  "meta-llama/llama-3.1-8b-instruct:free",
+];
 
-Her bir varyasyon farklı bir pazarlama açısı ve psikolojik tetikleyici kullanmalıdır:
-1. Varyasyon (Fayda & Değer Odaklı): Ürünün/hizmetin çözdüğü probleme ve sunduğu somut faydalara odaklanmalıdır.
-2. Varyasyon (Duygusal & Hikaye Odaklı): Kullanıcının duygularına hitap etmeli, bir hikaye veya bağ kurulabilir bir senaryo sunmalıdır.
-3. Varyasyon (Kısa & Doğrudan Eylem Odaklı): Hızlı okunan, merak uyandıran veya aciliyet (FOMO) hissi veren, doğrudan CTA'e yönlendiren yapıda olmalıdır.
+const SYSTEM_PROMPT = `Sen profesyonel bir dijital pazarlama ve reklam metni yazarısın.
+Verilen ürün, hedef kitle, ton, platform ve dil bilgisine göre 3 farklı reklam metni varyasyonu oluştur.
 
-Aşağıdaki JSON formatında yanıt ver:
-{
-  "variations": [
-    {
-      "id": "v1",
-      "strategy": "Fayda & Özellik Odaklı",
-      "headline": "Dikkat çekici başlık (Platforma uygun uzunlukta)",
-      "body": "Reklam gövde metni (Platforma uygun uzunlukta)",
-      "cta": "Harekete geçirici mesaj (örn: Hemen Al, Keşfet, Kayıt Ol)"
-    },
-    {
-      "id": "v2",
-      "strategy": "Duygusal & Hikaye Odaklı",
-      "headline": "...",
-      "body": "...",
-      "cta": "..."
-    },
-    {
-      "id": "v3",
-      "strategy": "Kısa & Eylem Odaklı",
-      "headline": "...",
-      "body": "...",
-      "cta": "..."
-    }
-  ],
-  "hashtags": "Platforma uygun 5 adet hashtag (boşluklarla ayrılmış, örn: #urun #kalite ...)"
-}
+Her varyasyon farklı bir pazarlama açısı kullanmalıdır:
+1. Fayda & Değer Odaklı: Ürünün çözdüğü probleme ve somut faydalara odaklan.
+2. Duygusal & Hikaye Odaklı: Kullanıcının duygularına hitap et.
+3. Kısa & Eylem Odaklı: Hızlı okunan, aciliyet hissi veren yapı.
 
-Kurallar:
-- Yanıt SADECE geçerli bir JSON olmalıdır. Markdown veya ek açıklama yazma.
-- Metinler belirtilen dilde yazılmalıdır.
-- Seçilen ton ve stile tam olarak uymalıdır.
-- Belirtilen platformun karakter limitleri ve genel dil yapısına uygun olmalıdır (Örn: LinkedIn profesyonel/kurumsal, Google Arama başlık/açıklama formatı, TikTok kanca ve senaryo formatı).`;
+SADECE aşağıdaki JSON formatında yanıt ver, başka hiçbir şey yazma:
+{"variations":[{"id":"v1","strategy":"Fayda & Özellik Odaklı","headline":"...","body":"...","cta":"..."},{"id":"v2","strategy":"Duygusal & Hikaye Odaklı","headline":"...","body":"...","cta":"..."},{"id":"v3","strategy":"Kısa & Eylem Odaklı","headline":"...","body":"...","cta":"..."}],"hashtags":"#hashtag1 #hashtag2 #hashtag3 #hashtag4 #hashtag5"}`;
 
 export async function POST(request: Request) {
   try {
-    const { product, description, targetAudience, platform = "Instagram", tone = "Profesyonel", language = "Türkçe" } = await request.json();
+    const {
+      product,
+      description,
+      targetAudience,
+      platform = "Instagram",
+      tone = "Profesyonel",
+      language = "Türkçe",
+    } = await request.json();
 
     if (!product || !description) {
       return NextResponse.json(
@@ -53,110 +37,146 @@ export async function POST(request: Request) {
       );
     }
 
-    const userPrompt = `Ürün/Hizmet: ${product}
-Açıklama: ${description}
-${targetAudience ? `Hedef Kitle: ${targetAudience}` : ""}
-Reklam Platformu: ${platform}
-Metin Tonu: ${tone}
-Yazım Dili: ${language}
+    // Kısa ve net kullanıcı prompt'u — karakter limitini aşmamak için
+    const userPrompt = `Ürün: ${product.substring(0, 100)}
+Açıklama: ${description.substring(0, 300)}
+${targetAudience ? `Hedef Kitle: ${targetAudience.substring(0, 100)}` : ""}
+Platform: ${platform}
+Ton: ${tone}
+Dil: ${language}
 
-Yukarıdaki bilgilere göre reklam metinlerini oluştur.`;
+JSON formatında 3 varyasyon oluştur.`;
 
     const userApiKey = request.headers.get("x-user-api-key");
     const apiKey = userApiKey || process.env.OPENROUTER_API_KEY;
 
+    // Demo modu
     if (!apiKey || apiKey === "your_openrouter_api_key_here") {
-      // Demo mode - return example data in the new format
       return NextResponse.json({
         variations: [
           {
             id: "v1",
             strategy: "Fayda & Özellik Odaklı",
             headline: `✨ ${product} ile Hayatını Kolaylaştır!`,
-            body: `${product} günlük rutinlerinizde size zaman kazandırmak için tasarlandı. Doğal bileşenleri ve güçlü formülüyle ${description.substring(0, 100)}... Deneyin ve farkı hemen görün!`,
-            cta: "Şimdi Satın Al"
+            body: `${product} ile ${description.substring(0, 80)}... Farkı hemen görün!`,
+            cta: "Şimdi Satın Al",
           },
           {
             id: "v2",
             strategy: "Duygusal & Hikaye Odaklı",
             headline: "Hak Ettiğin Özeni Kendine Göster",
-            body: "Her gün koşturmaca içinde kendini unutuyor musun? Kendine küçük bir iyilik yapmanın tam zamanı. `${product}` ile güne taze bir başlangıç yap, enerjini tazele ve günün tadını çıkar.",
-            cta: "Daha Fazla Bilgi"
+            body: `Her gün koşturmaca içinde kendinizi unutuyor musunuz? ${product} ile güne taze bir başlangıç yapın.`,
+            cta: "Daha Fazla Bilgi",
           },
           {
             id: "v3",
             strategy: "Kısa & Eylem Odaklı",
             headline: "Büyük Değişim, Küçük Adım!",
-            body: "Beklemek yok! ${product} ile anında sonuç. Sınırlı stok ve lansmana özel %20 indirim fırsatını kaçırmayın.",
-            cta: "Fırsatı Yakala"
-          }
+            body: `${product} ile anında sonuç. Sınırlı stok — fırsatı kaçırmayın!`,
+            cta: "Fırsatı Yakala",
+          },
         ],
         hashtags: "#reklam #yenilik #fırsat #kalite #keşfet",
         demo: true,
-        message: "Demo modu: Gerçek metinler için OpenRouter API anahtarı ekleyin."
+        message: "Demo modu: Gerçek metinler için OpenRouter API anahtarı ekleyin.",
       });
     }
 
-    const response = await fetch(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          "HTTP-Referer": "https://reklam-olusturucu.vercel.app",
-          "X-Title": "Reklam Olusturucu",
-        },
-        body: JSON.stringify({
-          model: "openai/gpt-4o-mini",
-          response_format: { type: "json_object" },
-          messages: [
-            { role: "system", content: SYSTEM_PROMPT },
-            { role: "user", content: userPrompt },
-          ],
-          temperature: 0.75,
-          max_tokens: 800,
-        }),
-      }
-    );
+    // Modelleri sırayla dene
+    const errors: string[] = [];
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("OpenRouter API error:", errorData);
-      throw new Error(
-        errorData.error?.message || "Reklam metni oluşturulamadı"
-      );
-    }
-
-    const data = await response.json();
-    const content = data.choices[0].message.content;
-
-    // Parse JSON from response
-    let parsed;
-    try {
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-      } else {
-        parsed = JSON.parse(content);
-      }
-    } catch {
-      // If parsing fails, fall back to structuring raw content
-      return NextResponse.json({
-        variations: [
+    for (const model of TEXT_MODELS) {
+      try {
+        const response = await fetch(
+          "https://openrouter.ai/api/v1/chat/completions",
           {
-            id: "v1",
-            strategy: "Fayda & Özellik Odaklı",
-            headline: "Reklam Metniniz Hazır!",
-            body: content,
-            cta: "Hemen İletişime Geç"
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+              "HTTP-Referer": "https://reklam-olusturucu.vercel.app",
+              "X-Title": "Reklam Olusturucu",
+            },
+            body: JSON.stringify({
+              model,
+              messages: [
+                { role: "system", content: SYSTEM_PROMPT },
+                { role: "user", content: userPrompt },
+              ],
+              temperature: 0.7,
+              max_tokens: 1200,
+            }),
           }
-        ],
-        hashtags: "#reklam #ürün #hizmet",
-      });
+        );
+
+        const data = await response.json().catch(() => ({})) as {
+          choices?: Array<{ message?: { content?: string } }>;
+          error?: { message?: string };
+        };
+
+        if (!response.ok) {
+          const errMsg = data.error?.message || `${model} başarısız (${response.status})`;
+          errors.push(`${model}: ${errMsg}`);
+          console.error(`Ad copy model ${model} failed:`, errMsg);
+          continue; // Sonraki modeli dene
+        }
+
+        const content = data.choices?.[0]?.message?.content;
+        if (!content) {
+          errors.push(`${model}: Boş yanıt`);
+          continue;
+        }
+
+        // JSON parse et — markdown fence varsa temizle
+        let parsed;
+        try {
+          const cleaned = content.replace(/```json|```/g, "").trim();
+          const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            parsed = JSON.parse(jsonMatch[0]);
+          } else {
+            parsed = JSON.parse(cleaned);
+          }
+        } catch {
+          // Parse başarısız — ham metni tek varyasyon olarak dön
+          return NextResponse.json({
+            variations: [
+              {
+                id: "v1",
+                strategy: "Fayda & Özellik Odaklı",
+                headline: `${product} Reklamı`,
+                body: content.substring(0, 500),
+                cta: "Hemen İncele",
+              },
+            ],
+            hashtags: `#${product.toLowerCase().replace(/\s+/g, "")} #reklam #kampanya`,
+          });
+        }
+
+        // variations yoksa veya boşsa hata ver
+        if (!parsed.variations || parsed.variations.length === 0) {
+          errors.push(`${model}: variations alanı boş`);
+          continue;
+        }
+
+        return NextResponse.json({ ...parsed, model });
+
+      } catch (modelErr) {
+        const msg = modelErr instanceof Error ? modelErr.message : "Bilinmeyen hata";
+        errors.push(`${model}: ${msg}`);
+        console.error(`Ad copy model ${model} threw:`, msg);
+      }
     }
 
-    return NextResponse.json(parsed);
+    // Tüm modeller başarısız
+    return NextResponse.json(
+      {
+        error:
+          "Reklam metni oluşturulamadı. API anahtarınızı kontrol edin. Detay: " +
+          errors[0],
+      },
+      { status: 502 }
+    );
   } catch (error) {
     console.error("Ad copy generation error:", error);
     return NextResponse.json(
@@ -169,4 +189,4 @@ Yukarıdaki bilgilere göre reklam metinlerini oluştur.`;
       { status: 500 }
     );
   }
-}
+}
