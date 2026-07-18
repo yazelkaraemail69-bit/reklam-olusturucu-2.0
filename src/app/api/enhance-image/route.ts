@@ -42,20 +42,17 @@ type ImageInput = {
   mimeType: string;
 };
 
-async function analyzeImagesWithVision(
+/**
+ * Yalnızca 1 görsel (en iyi/seçili) vision modeline gönderilir.
+ * Birden fazla görsel gönderilirse payload token limiti aşılır.
+ */
+async function analyzeImageWithVision(
   apiKey: string,
-  images: ImageInput[],
+  image: ImageInput,
+  imageCount: number,
   product: string,
   description: string
 ): Promise<string> {
-  // Birden fazla görsel için içerik dizisi oluştur
-  const imageContent = images.slice(0, 5).map((img) => ({
-    type: "image_url" as const,
-    image_url: {
-      url: `data:${img.mimeType};base64,${img.base64}`,
-    },
-  }));
-
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -70,10 +67,17 @@ async function analyzeImagesWithVision(
         {
           role: "user",
           content: [
-            ...imageContent,
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:${image.mimeType};base64,${image.base64}`,
+              },
+            },
             {
               type: "text",
-              text: `Analyze ${images.length > 1 ? "these " + images.length + " product/advertisement images" : "this product/advertisement image"} in detail. Extract:
+              text: `Analyze this product/advertisement image in detail.${imageCount > 1 ? ` (Note: User uploaded ${imageCount} product images; this is the primary one.)` : ""}
+
+Extract:
 1. Main product or subject (what is shown)
 2. Color palette (dominant colors, tones)
 3. Current style (minimalist, luxury, casual, etc.)
@@ -84,20 +88,13 @@ async function analyzeImagesWithVision(
 
 Product context: "${product}" - "${description}"
 
-Respond in English with a concise JSON analysis:
-{
-  "subject": "...",
-  "colors": "...",
-  "style": "...",
-  "lighting": "...",
-  "background": "...",
-  "mood": "...",
-  "audience": "..."
-}`,
+Respond ONLY with valid JSON (no markdown, no extra text):
+{"subject":"...","colors":"...","style":"...","lighting":"...","background":"...","mood":"...","audience":"..."}`,
             },
           ],
         },
       ],
+      max_tokens: 300,
     }),
   });
 
@@ -137,13 +134,11 @@ async function generateEnhancedImage(
     return { error: errMsg };
   }
 
-  // Görseli content veya images alanından al
+  // Görseli images veya content alanından al
   const images = data.choices?.[0]?.message?.images;
   const imageUrl = images?.[0]?.image_url?.url;
-
   if (imageUrl) return { imageUrl };
 
-  // İçerik alanında base64 veri URL'si olabilir
   const content = data.choices?.[0]?.message?.content;
   if (content && content.startsWith("data:image")) {
     return { imageUrl: content };
@@ -156,24 +151,29 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const {
-      base64Image,        // Geriye dönük uyumluluk için tek görsel
+      base64Image,
       mimeType = "image/jpeg",
-      images: multipleImages, // Çoklu görsel desteği: [{base64, mimeType}]
+      images: multipleImages,
+      imageCount: bodyImageCount,
       product = "",
       description = "",
       aspectRatio = "1:1",
       inspirationStyle = "",
     } = body;
 
-    // Görsel listesini normalize et (tek veya çoklu)
-    let imageList: ImageInput[] = [];
+    // Görsel normalize et — sadece 1 görsel analiz için kullan
+    let primaryImage: ImageInput | null = null;
+    let imageCount = 1;
+
     if (multipleImages && Array.isArray(multipleImages) && multipleImages.length > 0) {
-      imageList = multipleImages.slice(0, 5);
+      primaryImage = multipleImages[0];
+      imageCount = multipleImages.length;
     } else if (base64Image) {
-      imageList = [{ base64: base64Image, mimeType }];
+      primaryImage = { base64: base64Image, mimeType };
+      imageCount = typeof bodyImageCount === "number" ? bodyImageCount : 1;
     }
 
-    if (imageList.length === 0) {
+    if (!primaryImage) {
       return NextResponse.json(
         { error: "En az 1 görsel verisi gereklidir" },
         { status: 400 }
@@ -183,7 +183,7 @@ export async function POST(request: Request) {
     const userApiKey = request.headers.get("x-user-api-key");
     const apiKey = userApiKey || process.env.OPENROUTER_API_KEY;
 
-    // Demo mode — API key yok
+    // Demo mode
     if (!apiKey || apiKey === "your_openrouter_api_key_here") {
       const demoImg = DEMO_ENHANCED_IMAGES[Math.floor(Math.random() * DEMO_ENHANCED_IMAGES.length)];
       return NextResponse.json({
@@ -197,27 +197,29 @@ export async function POST(request: Request) {
           mood: "Profesyonel ve güvenilir",
           audience: "Genel tüketici kitlesi",
         },
-        enhancedPrompt: "Demo mode - AI prompt gösterilmiyor",
+        enhancedPrompt: "Demo mode",
         demo: true,
-        imageCount: imageList.length,
-        message: `Demo modu aktif (${imageList.length} görsel analiz edildi). Gerçek görsel geliştirme için OpenRouter API anahtarı ekleyin.`,
+        imageCount,
+        message: `Demo modu aktif (${imageCount} görsel). Gerçek görsel geliştirme için API anahtarı ekleyin.`,
       });
     }
 
-    // 1) Yüklenen görselleri vision ile analiz et
+    // 1) Seçili görseli vision ile analiz et (sadece 1 görsel gönderilir)
     let analysisText = "";
     let analysisJson: Record<string, string> = {};
 
     try {
-      analysisText = await analyzeImagesWithVision(
+      analysisText = await analyzeImageWithVision(
         apiKey,
-        imageList,
+        primaryImage,
+        imageCount,
         product,
         description
       );
 
-      // JSON parse dene
-      const jsonMatch = analysisText.match(/\{[\s\S]*\}/);
+      // JSON parse — markdown fence varsa temizle
+      const cleaned = analysisText.replace(/```json|```/g, "").trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         analysisJson = JSON.parse(jsonMatch[0]);
       }
@@ -234,53 +236,55 @@ export async function POST(request: Request) {
       ratioInstruction = "Landscape 16:9 aspect ratio, perfect for banners and desktop displays.";
     }
 
-    // 3) İlham stili talimatı
+    // 3) İlham stili
     const styleInstructions: Record<string, string> = {
-      minimalist: "ultra-minimalist aesthetic, pure white background, single product focus, maximum negative space, clean lines, Scandinavian design influence",
-      luxury: "luxurious dark background, deep black or midnight navy, subtle gold or champagne accents, dramatic moody lighting, premium editorial feel, high-end fashion magazine style",
-      vibrant: "vibrant saturated colors, bold gradient background, dynamic energy, pop art influence, punchy and eye-catching, Gen-Z aesthetic",
-      organic: "natural organic feel, linen or kraft paper texture, earth tones, warm botanical elements, soft natural lighting, sustainable brand aesthetic",
-      tech: "sleek futuristic tech aesthetic, deep blue or dark background, electric blue accents, glowing neon highlights, clean geometric shapes, silicon valley style",
-      retro: "vintage retro style, warm sepia or faded film tones, grain texture, 70s-80s color palette, nostalgic warm atmosphere",
-      cinematic: "cinematic wide-angle feel, dramatic side lighting, deep shadows, rich color grading, movie poster composition, atmospheric fog or bokeh",
-      pastel: "soft pastel color palette, dreamy airy background, cotton candy tones, gentle diffused lighting, feminine and approachable",
-      bold: "bold graphic design style, high contrast black and white with single accent color, geometric shapes, strong typography zones, Swiss design influence",
+      minimalist: "ultra-minimalist aesthetic, pure white background, single product focus, maximum negative space, clean Scandinavian design",
+      luxury: "luxurious dark background, deep black or midnight navy, subtle gold accents, dramatic moody lighting, premium editorial feel",
+      vibrant: "vibrant saturated colors, bold gradient background, dynamic energy, pop art influence, Gen-Z aesthetic",
+      organic: "natural organic feel, earth tones, warm botanical elements, soft natural lighting, sustainable brand aesthetic",
+      tech: "sleek futuristic tech aesthetic, deep dark background, electric blue accents, glowing neon highlights, geometric shapes",
+      retro: "vintage retro style, warm sepia film tones, grain texture, 70s-80s color palette, nostalgic atmosphere",
+      cinematic: "cinematic composition, dramatic lighting, deep shadows, rich color grading, movie poster quality",
+      pastel: "soft pastel color palette, dreamy airy background, cotton candy tones, gentle diffused lighting, feminine aesthetic",
+      bold: "bold graphic design, high contrast black and white with single accent color, strong geometric composition",
     };
 
     const stylePromptPart = inspirationStyle && styleInstructions[inspirationStyle]
       ? `\nVisual style: ${styleInstructions[inspirationStyle]}.`
       : "";
 
-    // 4) Geliştirilmiş prompt oluştur
+    // 4) Prompt oluştur
     const analysisDetails = Object.keys(analysisJson).length > 0
-      ? `\nProduct analysis from ${imageList.length} uploaded image(s):
+      ? `\nProduct image analysis:
 - Subject: ${analysisJson.subject || "product"}
 - Colors: ${analysisJson.colors || "professional colors"}
-- Current style: ${analysisJson.style || "modern"}
+- Style: ${analysisJson.style || "modern"}
 - Lighting: ${analysisJson.lighting || "studio"}
-- Background: ${analysisJson.background || "clean"}
 - Mood: ${analysisJson.mood || "professional"}`
       : "";
 
-    const enhancedPrompt = `Create a stunning, professional advertising image that dramatically improves upon this product/concept.
+    const multiImageNote = imageCount > 1
+      ? `\n(Based on analysis of ${imageCount} product images uploaded by user)`
+      : "";
+
+    const enhancedPrompt = `Create a stunning professional advertising image for this product.
 
 Product: "${product || "product"}"
 Description: "${description || "high quality product"}"
 ${analysisDetails}
+${multiImageNote}
 ${stylePromptPart}
 
-Enhancement requirements:
+Requirements:
 - ${ratioInstruction}
-- Professional commercial product photography quality
-- Instagram-ready, scroll-stopping visual impact
-- Perfect studio lighting or appropriate atmospheric lighting
-- Crisp, sharp focus on product
+- Professional commercial photography quality
+- Scroll-stopping visual impact
+- Perfect studio lighting
+- No text, watermarks, or logos in the image
 - Premium, aspirational feel
-- No text, watermarks, logos, or typography overlays in the image
-- Colors should be rich, vibrant, and commercially appealing
-- Composition should follow rule of thirds or centered hero shot`;
+- Rule of thirds or centered hero shot composition`;
 
-    // 5) Görsel üret
+    // 5) Görsel üret — modelleri sırayla dene
     const errors: string[] = [];
     for (const model of IMAGE_MODELS) {
       const result = await generateEnhancedImage(apiKey, model, enhancedPrompt);
@@ -290,16 +294,18 @@ Enhancement requirements:
           analysis: analysisJson,
           enhancedPrompt,
           model,
-          imageCount: imageList.length,
+          imageCount,
         });
       }
       errors.push(`${model}: ${result.error}`);
-      console.error(`Enhanced image generation failed with ${model}:`, result.error);
+      console.error(`Image generation failed with ${model}:`, result.error);
     }
 
     return NextResponse.json(
       {
-        error: "Görsel geliştirilemedi. Lütfen API anahtarınızı kontrol edin veya daha sonra tekrar deneyin. Detay: " + errors[0],
+        error:
+          "Görsel oluşturulamadı. API anahtarınızı kontrol edin veya daha sonra tekrar deneyin. Detay: " +
+          errors[0],
       },
       { status: 502 }
     );

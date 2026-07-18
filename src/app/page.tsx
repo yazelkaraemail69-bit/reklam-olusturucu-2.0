@@ -101,7 +101,7 @@ export default function Home() {
   const canProceedStep1 = product.trim() !== "" && description.trim() !== "";
   const canProceedStep2 = platform.trim() !== "";
 
-  // --- AI Görsel Geliştirme (çoklu görsel desteği) ---
+  // --- AI Görsel Geliştirme ---
   const handleEnhanceImage = async () => {
     if (uploadedImages.length === 0) return;
 
@@ -110,11 +110,10 @@ export default function Home() {
     setEnhancedImageUrl(null);
 
     try {
-      // Tüm yüklenen görselleri AI'ya gönder (en fazla 5)
-      const imagesToSend = uploadedImages.slice(0, 5).map((img) => ({
-        base64: img.base64,
-        mimeType: img.mimeType,
-      }));
+      // Sadece seçili görseli (veya ilk görseli) gönder — payload boyutunu küçük tut
+      const primaryImg =
+        uploadedImages.find((img) => img.id === selectedUploadedImageId) ||
+        uploadedImages[0];
 
       const res = await fetch("/api/enhance-image", {
         method: "POST",
@@ -123,10 +122,9 @@ export default function Home() {
           ...(userApiKey ? { "x-user-api-key": userApiKey } : {}),
         },
         body: JSON.stringify({
-          images: imagesToSend,
-          // Geriye dönük uyumluluk için seçili görseli de gönder
-          base64Image: imagesToSend[0]?.base64,
-          mimeType: imagesToSend[0]?.mimeType || "image/jpeg",
+          base64Image: primaryImg.base64,
+          mimeType: primaryImg.mimeType,
+          imageCount: uploadedImages.length, // Kaç görsel yüklendiğini bilgi olarak ilet
           product,
           description,
           aspectRatio,
@@ -139,10 +137,8 @@ export default function Home() {
       setEnhancedImageUrl(data.imageUrl);
       setImageAnalysis(data.analysis || {});
       setUseUploadedImage(true);
-      // Geliştirilmiş görseli ana görsel olarak kullan
       setImageUrl(data.imageUrl);
 
-      // Scroll to result
       setTimeout(() => {
         enhanceResultRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
       }, 300);
